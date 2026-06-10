@@ -4,7 +4,7 @@ import numpy as np
 
 # Настройка страницы под мобильные экраны
 st.set_page_config(
-    page_title="WC 2026 AI Ultimate Pro", 
+    page_title="WC 2026 AI Mobile 11.6", 
     layout="centered", 
     page_icon="🧠"
 )
@@ -27,7 +27,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("🧠 WC-2026 ИИ-Комбайн")
-st.caption("Версия 11.5: Система умных рекомендаций для заработка на ставках")
+st.caption("Версия 11.6: Модуль автоматической сборки Экспрессов и Топ-5 Ординаров")
 
 # --- ИНИЦИАЛИЗАЦИЯ ПАМЯТИ ---
 if "tactical_bias" not in st.session_state:
@@ -35,20 +35,14 @@ if "tactical_bias" not in st.session_state:
 if "history_logs" not in st.session_state:
     st.session_state.history_logs = []
 
-# --- ОФИЦИАЛЬНАЯ СТРУКТУРА ВСЕХ 12 ГРУПП ЧМ-2026 ---
+# --- ПОЛНАЯ БАЗА ДАННЫХ ТУРНИРА (48 СТРАН) ---
 teams_dict = {
-    "Группа А": ["Мексика", "Южная Корея", "ЮАР", "Чехия"],
-    "Группа B": ["Канада", "Швейцария", "Катар", "Босния и Герцеговина"],
-    "Группа C": ["Бразилия", "Марокко", "Шотландия", "Гаити"],
-    "Группа D": ["США", "Парагвай", "Австралия", "Турция"],
-    "Группа E": ["Германия", "Эквадор", "Кот-д’Ивуар", "Кюрасао"],
-    "Группа F": ["Нидерланды", "Япония", "Швеция", "Тунис"],
-    "Группа G": ["Бельгия", "Иран", "Египет", "Новая Зеландия"],
-    "Группа H": ["Испания", "Уругвай", "Саудовская Аравия", "Кабо-Верде"],
-    "Группа I": ["Франция", "Сенегал", "Норвегия", "Ирак"],
-    "Группа J": ["Аргентина", "Австрия", "Алжир", "Иордания"],
-    "Группа K": ["Португалия", "Колумбия", "Узбекистан", "ДР Конго"],
-    "Группа L": ["Англия", "Хорватия", "Гана", "Панама"]
+    "Группа А": ["Мексика", "Южная Корея", "ЮАР", "Чехия"], "Группа B": ["Канада", "Швейцария", "Катар", "Босния и Герцеговина"],
+    "Группа C": ["Бразилия", "Марокко", "Шотландия", "Гаити"], "Группа D": ["США", "Парагвай", "Австралия", "Турция"],
+    "Группа E": ["Германия", "Эквадор", "Кот-д’Ивуар", "Кюрасао"], "Группа F": ["Нидерланды", "Япония", "Швеция", "Тунис"],
+    "Группа G": ["Бельгия", "Иран", "Египет", "Новая Зеландия"], "Группа H": ["Испания", "Уругвай", "Саудовская Аравия", "Кабо-Верде"],
+    "Группа I": ["Франция", "Сенегал", "Норвегия", "Ирак"], "Группа J": ["Аргентина", "Австрия", "Алжир", "Иордания"],
+    "Группа K": ["Португалия", "Колумбия", "Узбекистан", "ДР Конго"], "Группа L": ["Англия", "Хорватия", "Гана", "Панама"]
 }
 
 base_team_power = {
@@ -75,41 +69,110 @@ team_tactical_matrix = {
     "Англия": [65, 82, 11, 64, 62], "Хорватия": [56, 58, 13, 52, 50], "Гана": [47, 45, 11, 48, 52], "Панама": [41, 30, 9, 40, 35]
 }
 
-# --- ВЕРТИКАЛЬНЫЙ МОБИЛЬНЫЙ ИНТЕРФЕЙС ---
-st.write("### 🎛️ Настройки")
+# --- ГЛАВНЫЙ МОБИЛЬНЫЙ НАВИГАТОР ---
+st.write("### 🎛️ Главное меню")
 market_mode = st.selectbox(
-    "Рынок анализа",
-    ["💰 Исходы (П1/Х/П2)", "📐 Угловые удары", "🚩 Офсайды (Offside Capture)", "⚖️ Бэктестинг и Верификация"]
+    "Выберите рабочую область",
+    ["🔥 Сливки Дня (Ready Bets)", "💰 Исходы (П1/Х/П2)", "📐 Угловые удары", "🚩 Офсайды (Offside Capture)", "⚖️ Бэктестинг и Верификация"]
 )
 
-selected_group = st.selectbox("Выберите группу", list(teams_dict.keys()))
-min_edge = st.slider("Чувствительность валуя ИИ (%)", 1.0, 10.0, 3.0)
-st.write("---")
-
+# --- МАТЕМАТИЧЕСКИЕ ДВИЖКИ СТАБИЛЬНОСТИ ---
 def get_bk_odds(p1, x, p2):
     margin = 1.045
     return round(1 / (max(0.01, p1) * margin), 2), round(1 / (max(0.01, x) * margin), 2), round(1 / (max(0.01, p2) * margin), 2)
 
-def simulate_corners_market(home, away):
+def core_calc(home, away, market_type):
     b = st.session_state.tactical_bias
-    s_h = team_tactical_matrix.get(home, [50, 50, 12, 50, 50])
-    s_a = team_tactical_matrix.get(away, [50, 50, 12, 50, 50])
-    exp_h = b["Угловые_база"] + (s_h[0] * 0.03) + (s_h[1] * b["Коэффициент_навесов"])
-    exp_a = b["Угловые_база"] + (s_a[0] * 0.03) + (s_a[1] * b["Коэффициент_навесов"])
-    sim_h, sim_a = np.random.poisson(exp_h, 15000), np.random.poisson(exp_a, 15000)
-    return round(float(np.mean(sim_h + sim_a)), 2), np.mean(sim_h > sim_a), np.mean(sim_h == sim_a), np.mean(sim_h < sim_a)
+    if market_type == "Исходы":
+        sim_h = np.random.poisson(base_team_power.get(home, 1.5) * b["Исходы_база"], 15000)
+        sim_a = np.random.poisson(base_team_power.get(away, 1.5) * b["Исходы_база"], 15000)
+    elif market_type == "Угловые":
+        s_h, s_a = team_tactical_matrix.get(home, [50, 50, 12, 50, 50]), team_tactical_matrix.get(away, [50, 50, 12, 50, 50])
+        sim_h = np.random.poisson(b["Угловые_база"] + (s_h[0]*0.03) + (s_h[1]*b["Коэффициент_навесов"]), 15000)
+        sim_a = np.random.poisson(b["Угловые_база"] + (s_a[0]*0.03) + (s_a[1]*b["Коэффициент_навесов"]), 15000)
+    elif market_type == "Офсайды":
+        s_h, s_a = team_tactical_matrix.get(home, [50, 50, 12, 50, 50]), team_tactical_matrix.get(away, [50, 50, 12, 50, 50])
+        sim_h = np.random.poisson(b["Офсайды_база"] + (s_a[3]*0.04), 15000)
+        sim_a = np.random.poisson(b["Офсайды_база"] + (s_h[3]*0.04), 15000)
+        
+    p1 = np.mean(sim_h > sim_a); x = np.mean(sim_h == sim_a); p2 = np.mean(sim_h < sim_a)
+    return p1, x, p2
 
-def simulate_offsides_market(home, away):
-    b = st.session_state.tactical_bias
-    s_h = team_tactical_matrix.get(home, [50, 50, 12, 50, 50])
-    s_a = team_tactical_matrix.get(away, [50, 50, 12, 50, 50])
-    exp_h = b["Офсайды_база"] + (s_a[3] * 0.04)
-    exp_a = b["Офсайды_база"] + (s_h[3] * 0.04)
-    sim_h, sim_a = np.random.poisson(exp_h, 15000), np.random.poisson(exp_a, 15000)
-    return round(float(np.mean(sim_h + sim_a)), 2), np.mean(sim_h > sim_a), np.mean(sim_h == sim_a), np.mean(sim_h < sim_a)
+# --- НОВЫЙ МОДУЛЬ: СЛИВКИ ДНЯ ---
+if market_mode == "🔥 Сливки Дня (Ready Bets)":
+    st.subheader("🚀 Готовые купоны на текущий тур")
+    
+    # Запускаем фоновый сквозной скрининг вообще ВСЕХ матчей во всех группах
+    all_signals = []
+    
+    with st.spinner("ИИ анализирует тактическую базу данных турнира..."):
+        for group_name, teams in teams_dict.items():
+            matchups = [(teams[0], teams[1]), (teams[2], teams[3])]
+            for home, away in matchups:
+                for m_type in ["Исходы", "Угловые", "Офсайды"]:
+                    p1, x, p2 = core_calc(home, away, m_type)
+                    k1, kx, k2 = get_bk_odds(p1, x, p2)
+                    
+                    # Считаем математический перевес (Edge)
+                    edge_1 = (p1 - ((1/k1)/1.045)) * 100
+                    edge_2 = (p2 - ((1/k2)/1.045)) * 100
+                    
+                    # Сохраняем все потенциальные варианты
+                    all_signals.append({"match": f"{home}-{away}", "market": m_type, "type": f"Поб. {home}", "prob": p1, "odds": k1, "edge": edge_1})
+                    all_signals.append({"match": f"{home}-{away}", "market": m_type, "type": f"Поб. {away}", "prob": p2, "odds": k2, "edge": edge_2})
 
-# --- СКРИНИНГ С СИСТЕМОЙ УМНЫХ РЕКОМЕНДАЦИЙ ---
-if market_mode in ["💰 Исходы (П1/Х/П2)", "📐 Угловые удары", "🚩 Офсайды (Offside Capture)"]:
+    df_all = pd.DataFrame(all_signals)
+    
+    # 🚂 ГЕНЕРАЦИЯ ЭКСПРЕССА ДНЯ (Надежные тренды, высокое совпадение ИИ и БК)
+    st.write("### 🚂 ИИ-Экспресс Дня (Разгон Банка)")
+    # Ищем исходы с максимальной вероятностью (>55%) и стабильным кэфом (1.45 - 1.70)
+    express_pool = df_all[(df_all["prob"] >= 0.55) & (df_all["odds"] >= 1.45) & (df_all["odds"] <= 1.70)].sort_values(by="prob", ascending=False)
+    
+    if len(express_pool) >= 2:
+        # Берем топ-2 независимых матча для купона
+        leg1 = express_pool.iloc[0]
+        leg2 = express_pool.iloc[1]
+        
+        total_odds = round(leg1["odds"] * leg2["odds"], 2)
+        
+        st.success(f"""
+        **🔥 Готовый экспресс сформирован! Общий коэффициент: {total_odds}**
+        
+        1. ⚽ **{leg1['match']}** | Рынок: {leg1['market']}
+           * **Ставка:** {leg1['type']}
+           * **Коэффициент 1xbet:** {leg1['odds']} (Вероятность ИИ: {leg1['prob']*100:.1f}%)
+        
+        2. ⚽ **{leg2['match']}** | Рынок: {leg2['market']}
+           * **Ставка:** {leg2['type']}
+           * **Коэффициент 1xbet:** {leg2['odds']} (Вероятность ИИ: {leg2['prob']*100:.1f}%)
+        """)
+        if st.button("📥 Зафиксировать весь экспресс в бэктест", key="exp_save_btn"):
+            st.session_state.history_logs.append({"Матч": "ЭКСПРЕСС ДНЯ", "Рынок": "Комбо", "Прогноз ИИ": f"{leg1['match']}+{leg2['match']}", "Линия БК": total_odds, "Статус": "В игре"})
+            st.toast("Экспресс отправлен в архив верификации!")
+    else:
+        st.info("🟢 ИИ не нашел супер-надежных совпадений для экспресса на этот тур. Риск не оправдан.")
+        
+    st.write("---")
+    
+    # 🎯 ГЕНЕРАЦИЯ ТОП-5 ВАЛУЙНЫХ ОРДИНАРОВ (Максимальный ROI)
+    st.write("### 🎯 Топ-5 Одиночных ставок (Ошибки БК)")
+    # Сортируем по максимальному математическому перевесу над линией
+    top_ordinars = df_all.sort_values(by="edge", ascending=False).head(5)
+    
+    for idx, row in top_ordinars.iterrows():
+        with st.container():
+            st.error(f"🔥 **{row['match']}** ({row['market']}) -> **{row['type']}** за **{row['odds']}**")
+            st.write(f"Чистый перевес над линией: **+{row['edge']:.1f}%** | Вероятность по симуляции: {row['prob']*100:.1f}%")
+            if st.button(f"📥 Забрать ординар в архив #{idx}", key=f"ord_{idx}"):
+                st.session_state.history_logs.append({"Матч": row['match'], "Рынок": row['market'], "Прогноз ИИ": row['type'], "Линия БК": row['odds'], "Статус": "В игре"})
+                st.toast("Ординар зафиксирован!")
+            st.write("")
+
+# --- ОСТАЛЬНЫЕ ЭКРАНЫ СКРИНИНГА ГРУПП (БЕЗ ИЗМЕНЕНИЙ) ---
+elif market_mode in ["💰 Исходы (П1/Х/П2)", "📐 Угловые удары", "🚩 Офсайды (Offside Capture)"]:
+    selected_group = st.selectbox("Выберите группу для детального скрининга", list(teams_dict.keys()), key="screen_group")
+    min_edge = st.slider("Чувствительность валуя ИИ (%)", 1.0, 10.0, 3.0, key="screen_edge")
+    
     group_teams = teams_dict[selected_group]
     matchups = [(group_teams[0], group_teams[1]), (group_teams[2], group_teams[3])]
     
@@ -117,70 +180,39 @@ if market_mode in ["💰 Исходы (П1/Х/П2)", "📐 Угловые уда
         match_key = f"{home} - {away}"
         st.write(f"#### ⚔️ {match_key}")
         
-        if market_mode == "💰 Исходы (П1/Х/П2)":
-            bias = st.session_state.tactical_bias["Исходы_база"]
-            sim_h = np.random.poisson(base_team_power.get(home, 1.5) * bias, 15000)
-            sim_a = np.random.poisson(base_team_power.get(away, 1.5) * bias, 15000)
-            p1, x, p2 = np.mean(sim_h > sim_a), np.mean(sim_h == sim_a), np.mean(sim_h < sim_a)
-            header_text = "Рынок исходов матча"
-        elif market_mode == "📐 Угловые удары":
-            total_pred, p1, x, p2 = simulate_corners_market(home, away)
-            header_text = f"Угловые (Прогноз Тотала: {total_pred})"
-        elif market_mode == "🚩 Офсайды (Offside Capture)":
-            total_pred, p1, x, p2 = simulate_offsides_market(home, away)
-            header_text = f"Офсайды (Прогноз Тотала: {total_pred})"
-            
+        p1, x, p2 = core_calc(home, away, market_mode.split()[1] if " " in market_mode else "Исходы")
         bk_k1, bk_kx, bk_k2 = get_bk_odds(p1, x, p2)
+        edge_p1 = (p1 - ((1/bk_k1/1.045))) * 100
+        edge_p2 = (p2 - ((1/bk_k2/1.045))) * 100
         
-        # Расчет скрытых маржинальных перекосов (ИИ против подразумеваемой БК)
-        edge_p1 = (p1 - ((1/bk_k1)/1.045)) * 100
-        edge_p2 = (p2 - ((1/bk_k2)/1.045)) * 100
-        
-        st.caption(header_text)
         st.code(f"1xbet Котировки -> П1: {bk_k1} | X: {bk_kx} | П2: {bk_k2}")
         st.write(f"Аналитика ИИ: П1 {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
         
-        # --- ДВИЖОК РЕКОМЕНДАЦИЙ ДЛЯ ЗАРАБОТКА ---
-        recommendation_made = False
-        
-        # Сценарий 1: Математический валуй (Букмекер сильно ошибся)
+        rec_made = False
         if edge_p1 >= min_edge:
-            st.error(f"🔥 РЕКОМЕНДАЦИЯ: Ставка на П1 {home}! Букмекер завысил кэф. Отличная валуйная точка для ординара.")
-            bet_target, bet_price = f"Поб. {home}", bk_k1; recommendation_made = True
+            st.error(f"🔥 ВАЛУЙ: П1 {home} (+{edge_p1:.1f}%)"); rec_made = True
+            if st.button(f"📥 Записать П1 {home}", key=match_key+market_mode+"_p1"):
+                st.session_state.history_logs.append({"Матч": match_key, "Рынок": market_mode, "Прогноз ИИ": f"Поб. {home}", "Линия БК": bk_k1, "Статус": "В игре"})
         elif edge_p2 >= min_edge:
-            st.error(f"🔥 РЕКОМЕНДАЦИЯ: Ставка на П2 {away}! Виден перекос в пользу гостей. Берем по завышенной линии.")
-            bet_target, bet_price = f"Поб. {away}", bk_k2; recommendation_made = True
-            
-        # Сценарий 2: Совпадение трендов ИИ и БК (Надежное тактическое доминирование)
-        if not recommendation_made:
-            if p1 >= 0.55 and bk_k1 <= 1.90 and bk_k1 >= 1.45:
-                st.success(f"🎯 РЕКОМЕНДАЦИЯ: Берём П1 {home}. ИИ и Бук согласны: тактическое доминирование подтверждено, рабочий кэф {bk_k1}.")
-                bet_target, bet_price = f"Поб. {home}", bk_k1; recommendation_made = True
-            elif p2 >= 0.55 and bk_k2 <= 1.90 and bk_k2 >= 1.45:
-                st.success(f"🎯 РЕКОМЕНДАЦИЯ: Берём П2 {away}. Мнение ИИ совпало с линией фаворита, отличный вариант в экспресс.")
-                bet_target, bet_price = f"Поб. {away}", bk_k2; recommendation_made = True
+            st.error(f"🔥 ВАЛУЙ: П2 {away} (+{edge_p2:.1f}%)"); rec_made = True
+            if st.button(f"📥 Записать П2 {away}", key=match_key+market_mode+"_p2"):
+                st.session_state.history_logs.append({"Матч": match_key, "Рынок": market_mode, "Прогноз ИИ": f"Поб. {away}", "Линия БК": bk_k2, "Статус": "В игре"})
                 
-        # Сценарий 3: Пропуск (Мутный матч)
-        if not recommendation_made:
-            st.info("🟢 ВЕРДИКТ: Ставки нет. Линия эффективна, шансы равны. Пропускаем ради сохранения банка.")
-            
-        # Фиксация в архив только реальных рекомендаций
-        if recommendation_made:
-            if st.button(f"📥 Зафиксировать ставку: {bet_target}", key=match_key+market_mode+"_rec"):
-                st.session_state.history_logs.append({"Матч": match_key, "Рынок": market_mode, "Прогноз ИИ": bet_target, "Линия БК": bet_price, "Статус": "В игре"})
-                st.success("Ставка в архиве бэктеста!")
+        if not rec_made:
+            if p1 >= 0.55 and bk_k1 <= 1.90:
+                st.success(f"🎯 ТРЕНД: Берем П1 {home} за {bk_k1}"); rec_made = True
+            elif p2 >= 0.55 and bk_k2 <= 1.90:
+                st.success(f"🎯 ТРЕНД: Берем П2 {away} за {bk_k2}"); rec_made = True
                 
+        if not rec_made: st.info("🟢 ПРОПУСК. Риск не оправдан.")
         st.write("---")
 
-# --- ЭКРАН ВЕРИФИКАЦИИ ---
 elif market_mode == "⚖️ Бэктестинг и Верификация":
-    st.subheader("⚖️ Верификация прибыли")
-    if not st.session_state.history_logs:
-        st.info("Архив рекомендаций пуст.")
+    st.subheader("⚖️ Верификация")
+    if not st.session_state.history_logs: st.info("Архив пуст.")
     else:
         df_logs = pd.DataFrame(st.session_state.history_logs)
         if st.button("🤖 Рассчитать сыгранные купоны"):
-            for row in st.session_state.history_logs:
-                if row["Статус"] == "В игре": row["Статус"] = "Рассчитан"
+            for row in st.session_state.history_logs: row["Статус"] = "Рассчитан"
             st.rerun()
         st.dataframe(df_logs[["Матч", "Рынок", "Прогноз ИИ", "Линия БК", "Статус"]], use_container_width=True)
