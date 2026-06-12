@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 # Настройка страницы под мобильные экраны
 st.set_page_config(
-    page_title="WC 2026 LIVE 12.8", 
+    page_title="WC 2026 LIVE 12.9", 
     layout="centered", 
     page_icon="🧠"
 )
@@ -29,7 +29,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("🧠 WC-2026 ИИ-Комбайн LIVE")
-st.caption("Версия 12.8: Автоматические пороги окупаемости для Угловых и Офсайдов")
+st.caption("Версия 12.9: Прямой вывод победителя по смоллмаркетам")
 
 # --- ИНИЦИАЛИЗАЦИЯ ПАМЯТИ ---
 if "tactical_bias" not in st.session_state:
@@ -159,16 +159,21 @@ else:
             st.write(f"#### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
             p1, x, p2, total_pred = simulate_smalls(m["home"], m["away"], "Угловые")
             
-            # Расчет минимальных пороговых кэфов окупаемости
-            req_k1 = round(1 / (p1 * 1.045), 2) if p1 > 0 else 99.0
-            req_k2 = round(1 / (p2 * 1.045), 2) if p2 > 0 else 99.0
-            
+            # Жесткий выбор победителя по максимальной вероятности
+            if p1 > p2:
+                winner_team = m['home']
+                req_odds = round(1 / (p1 * 1.045), 2)
+                win_prob = p1
+            else:
+                winner_team = m['away']
+                req_odds = round(1 / (p2 * 1.045), 2)
+                win_prob = p2
+                
             st.caption(f"📈 Ожидаемый общий Тотал матча: **{total_pred}** угловых")
-            st.write(f"Вероятности ИИ: П1 (Канада) {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
             
-            st.error(f"📋 **ПРАВИЛО СТАВКИ В 1XBET ДЛЯ УГЛОВЫХ:**")
-            st.write(f"👉 Ставь на **П1 ({m['home']})**, только если оригинальный кэф в 1xbet **>= {req_k1}**")
-            st.write(f"👉 Ставь на **П2 ({m['away']})**, только если оригинальный кэф в 1xbet **>= {req_k2}**")
+            st.success(f"🏆 **Победитель по угловым (Прогноз ИИ): {winner_team}** | Вероятность: {win_prob*100:.1f}%")
+            st.error(f"📋 **УСЛОВИЕ ДЛЯ СТАВКИ В 1XBET:**")
+            st.write(f"👉 Открой вкладку 'Угловые'. Ставь на **Победу {winner_team}**, только если текущий кэф **>= {req_odds}**")
             st.write("---")
 
     elif market_mode == "🚩 Офсайды (Offside Capture)":
@@ -177,14 +182,19 @@ else:
             st.write(f"#### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
             p1, x, p2, total_pred = simulate_smalls(m["home"], m["away"], "Офсайды")
             
-            # Расчет минимальных пороговых кэфов окупаемости
-            req_k1 = round(1 / (p1 * 1.045), 2) if p1 > 0 else 99.0
-            req_k2 = round(1 / (p2 * 1.045), 2) if p2 > 0 else 99.0
-            
+            # Жесткий выбор победителя по максимальной вероятности
+            if p1 > p2:
+                winner_team = m['home']
+                req_odds = round(1 / (p1 * 1.045), 2)
+                win_prob = p1
+            else:
+                winner_team = m['away']
+                req_odds = round(1 / (p2 * 1.045), 2)
+                win_prob = p2
+                
             st.caption(f"📈 Ожидаемый общий Тотал матча: **{total_pred}** офсайдов")
-            st.write(f"Вероятности ИИ: П1 {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
             
-            st.error(f"📋 **ПРАВИЛО СТАВКИ В 1XBET ДЛЯ ОФСАЙДОВ:**")
-            st.write(f"👉 Ставь на **П1 ({m['home']})**, только если оригинальный кэф в 1xbet **>= {req_k1}**")
-            st.write(f"👉 Ставь на **П2 ({m['away']})**, только если оригинальный кэф в 1xbet **>= {req_k2}**")
+            st.success(f"🏆 **Победитель по офсайдам (Прогноз ИИ): {winner_team}** | Вероятность: {win_prob*100:.1f}%")
+            st.error(f"📋 **УСЛОВИЕ ДЛЯ СТАВКИ В 1XBET:**")
+            st.write(f"👉 Открой вкладку 'Офсайды'. Ставь на **Победу {winner_team}**, только если текущий кэф **>= {req_odds}**")
             st.write("---")
