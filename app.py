@@ -7,7 +7,7 @@ from datetime import datetime, timezone, timedelta
 
 # Настройка страницы под мобильные экраны
 st.set_page_config(
-    page_title="WC 2026 LIVE 13.3", 
+    page_title="WC 2026 LIVE 13.5", 
     layout="centered", 
     page_icon="🧠"
 )
@@ -29,7 +29,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("🧠 WC-2026 ИИ-Комбайн LIVE")
-st.caption("Версия 13.3: Умный фильтр дубликатов матчей в экспрессе")
+st.caption("Версия 13.5: Жесткий выбор потенциального победителя по метрике ИИ")
 
 # --- ИНИЦИАЛИЗАЦИЯ ПАМЯТИ ---
 if "tactical_bias" not in st.session_state:
@@ -65,12 +65,7 @@ def fetch_live_matches():
         if response.status_code == 200:
             data = response.json()
             cleaned_matches = []
-            now = datetime.now(timezone.utc)
             for match in data:
-                match_time_str = match.get("commence_time")
-                match_time = datetime.strptime(match_time_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                if match_time < now - timedelta(hours=3) or match_time > now + timedelta(days=3):
-                    continue
                 home_team = match.get("home_team")
                 away_team = match.get("away_team")
                 onexbet_odds = None
@@ -86,22 +81,17 @@ def fetch_live_matches():
                         onexbet_odds = (k1, kx, k2)
                         break
                 if onexbet_odds:
-                    local_time = match_time.astimezone(timezone(timedelta(hours=5)))
-                    cleaned_matches.append({"home": home_team, "away": away_team, "k1": onexbet_odds[0], "kx": onexbet_odds[1], "k2": onexbet_odds[2], "time": local_time.strftime("%d.%02m %H:%M")})
+                    cleaned_matches.append({"home": home_team, "away": away_team, "k1": onexbet_odds[0], "kx": onexbet_odds[1], "k2": onexbet_odds[2], "time": "13.06 00:00"})
             return cleaned_matches
         return []
     except:
         return []
 
 def fetch_live_smalls_from_site(home, away, market_type):
-    if home == "Canada" and market_type == "Угловые":
-        return 1.51, 7.20, 3.45
-    elif home == "Canada" and market_type == "Офсайды":
-        return 2.50, 3.90, 2.20
-    elif home == "USA" and market_type == "Угловые":
-        return 1.64, 8.00, 2.81
-    elif home == "USA" and market_type == "Офсайды":
-        return 2.50, 3.70, 2.27
+    if home == "Canada" and market_type == "Угловые": return 1.51, 7.20, 3.45
+    elif home == "Canada" and market_type == "Офсайды": return 2.50, 3.90, 2.20
+    elif home == "USA" and market_type == "Угловые": return 1.64, 8.00, 2.81
+    elif home == "USA" and market_type == "Офсайды": return 2.50, 3.70, 2.27
     return 1.85, 3.40, 2.10
 
 def simulate_smalls(home, away, market_type):
@@ -147,81 +137,80 @@ else:
 
     if market_mode == "🔥 Сливки Дня":
         st.subheader("🚀 Снайперский ИИ-Экспресс со смоллмаркетами")
-        
-        # Общий пул подходящих валуйных ставок
         express_pool = df_all[(df_all["prob"] >= 0.45) & (df_all["odds"] >= 1.60) & (df_all["odds"] <= 3.50) & (df_all["edge"] >= 3.0)].sort_values(by="edge", ascending=False)
         
         if len(express_pool) >= 1:
-            # Берем первый, самый сильный сигнал
             leg1 = express_pool.iloc[0]
-            
-            # ФИЛЬТР: Исключаем любые другие исходы для этого же матча (leg1["match"])
             filtered_pool2 = express_pool[express_pool["match"] != leg1["match"]]
             
             if len(filtered_pool2) >= 1:
-                # Берем второй сигнал строго из ДРУГОГО матча
                 leg2 = filtered_pool2.iloc[0]
-                
                 st.success(f"🔥 Смешанный экспресс дня готов! Общий коэффициент в 1xbet: {round(leg1['odds'] * leg2['odds'], 2)}\n\n1. ⚽ **{leg1['match']}** | Рынок: **{leg1['market']}** ➡️ Ставка: **{leg1['type']}** за **{leg1['odds']}** (Перевес: +{leg1['edge']:.1f}%)\n2. ⚽ **{leg2['match']}** | Рынок: **{leg2['market']}** ➡️ Ставка: **{leg2['type']}** за **{leg2['odds']}** (Перевес: +{leg2['edge']:.1f}%)")
-                
-                st.info("📋 **Обоснование ИИ-синдиката:**\n"
-                        f"* 🎯 Позиция 1 ({leg1['match']} - {leg1['market']}): Букмекер выставил кэф {leg1['odds']} под влиянием прогруза толпы, проигнорировав базовые тактические метрики флангов. Математическая симуляция видит здесь чистую валуйную ошибку линии.\n"
-                        f"* 🎯 Позиция 2 ({leg2['match']} - {leg2['market']}): Стилистическая матрица команд подтверждает жесткое несовпадение атакующих кроссов и высоты защиты, что дает нам стабильный перевес в +{leg2['edge']:.1f}% над текущей котировкой БК.")
-            else:
-                st.info("🟢 Найдена только одна валуйная позиция. Для экспресса из разных матчей данных недостаточно.")
-        else:
-            st.info("🟢 На ближайшие часы перекосов в линии смоллмаркетов не найдено. Ждем движения линии.")
+            else: st.info("🟢 Найдена только одна валуйная позиция.")
+        else: st.info("🟢 На ближайшие часы перекосов в линии смоллмаркетов не найдено.")
 
     elif market_mode == "💰 Победы и ничьи матчей (1xbet)":
         st.subheader("💰 Мониторинг рынка чистых исходов")
         for m in live_data:
-            st.write(f"#### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
+            st.write(f"#### ⚔️ {m['home']} vs {m['away']}")
             sim_h = np.random.poisson(base_team_power.get(m['home'], 1.5), 15000)
             sim_a = np.random.poisson(base_team_power.get(m['away'], 1.5), 15000)
             p1, x, p2 = np.mean(sim_h > sim_a), np.mean(sim_h == sim_a), np.mean(sim_h < sim_a)
             st.code(f"Линия 1xbet -> П1: {m['k1']} | X: {m['kx']} | П2: {m['k2']}")
-            st.write(f"ИИ Прогноз: П1 {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
             
-            req_k1 = round(1 / (p1 * 1.045), 2) if p1 > 0 else 99.0
-            req_k2 = round(1 / (p2 * 1.045), 2) if p2 > 0 else 99.0
-            if m["k1"] < req_k1: st.write(f"🛑 **П1 ({m['home']}):** Не ставить. Кэф занижен БК. (Порог ИИ: >= **{req_k1}**)")
-            else: st.write(f"🔥 **П1 ({m['home']}):** ВАЛУЙНЫЙ КЭФ. Можно ставить (Порог ИИ: >= {req_k1})")
-            if m["k2"] < req_k2: st.write(f"🛑 **П2 ({m['away']}):** Не ставить. Кэф занижен БК. (Порог ИИ: >= **{req_k2}**)")
-            else: st.write(f"🔥 **П2 ({m['away']}):** ВАЛУЙНЫЙ КЭФ. Можно ставить (Порог ИИ: >= {req_k2})")
+            # ВЫБОР ТОЛЬКО ОДНОГО ФАВОРИТА ПО МЕТРИКЕ ВЕРОЯТНОСТИ ИИ
+            if p1 > p2:
+                fav_team, fav_prob, fav_live_odds, label = m['home'], p1, m['k1'], "П1"
+            else:
+                fav_team, fav_prob, fav_live_odds, label = m['away'], p2, m['k2'], "П2"
+                
+            req_odds = round(1 / (fav_prob * 1.045), 2)
+            st.write(f"📊 Метрика ИИ (Фаворит матча): **{fav_team}** | Шанс победы: {fav_prob*100:.1f}%")
+            
+            if fav_live_odds < req_odds:
+                st.error(f"🛑 **РЕШЕНИЕ ПО МАТЧУ:** Ставить на {label} ({fav_team}) НЕ РЕКОМЕНДУЕТСЯ. Коэффициент занижен БК ({fav_live_odds} < {req_odds})")
+            else:
+                st.success(f"🔥 **ЧЕТКОЕ ДЕЙСТВИЕ:** Ставь на {label} ({fav_team}) в 1xbet! Кэф {fav_live_odds} валуйный (Порог ИИ: >= {req_odds})")
             st.write("---")
 
     elif market_mode == "📐 Угловые удары":
         st.subheader("📐 Авто-мониторинг угловых")
         for m in live_data:
-            st.write(f"#### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
+            st.write(f"#### ⚔️ {m['home']} vs {m['away']}")
             p1, x, p2, total_pred = simulate_smalls(m["home"], m["away"], "Угловые")
             live_k1, live_kx, live_k2 = fetch_live_smalls_from_site(m["home"], m["away"], "Угловые")
             
-            if p1 > p2: winner_team, req_odds, win_prob, live_b_odds = m['home'], round(1 / (p1 * 1.045), 2), p1, live_k1
-            else: winner_team, req_odds, win_prob, live_b_odds = m['away'], round(1 / (p2 * 1.045), 2), p2, live_k2
+            if p1 > p2: fav_team, fav_prob, fav_live_odds, label = m['home'], p1, live_k1, "П1"
+            else: fav_team, fav_prob, fav_live_odds, label = m['away'], p2, live_k2, "П2"
                 
+            req_odds = round(1 / (fav_prob * 1.045), 2)
             st.caption(f"📈 Ожидаемый общий Тотал матча: **{total_pred}** угловых")
             st.code(f"Живая линия 1xbet по угловым -> П1: {live_k1} | X: {live_kx} | П2: {live_k2}")
-            st.success(f"🏆 Фаворит ИИ: {winner_team} ({win_prob*100:.1f}%) | Порог кэфа: >= {req_odds}")
+            st.write(f"📊 Метрика ИИ (Фаворит по угловым): **{fav_team}** | Вероятность: {fav_prob*100:.1f}%")
             
-            if live_b_odds < req_odds: st.write(f"🛑 **Вердикт:** Не ставить. Текущий кэф {live_b_odds} ниже порога {req_odds}")
-            else: st.error(f"🔥 **ЧЕТКОЕ ДЕЙСТВИЕ:** Ставь на Победу {winner_team} по угловым за {live_b_odds}!")
+            if fav_live_odds < req_odds:
+                st.error(f"🛑 **РЕШЕНИЕ ПО УГЛОВЫМ:** Ставить на {label} ({fav_team}) НЕ РЕКОМЕНДУЕТСЯ. Кэф занижен БК ({fav_live_odds} < {req_odds})")
+            else:
+                st.success(f"🔥 **ЧЕТКОЕ ДЕЙСТВИЕ:** Ставь на {label} ({fav_team}) по угловым! Кэф {fav_live_odds} валуйный (Порог ИИ: >= {req_odds})")
             st.write("---")
 
     elif market_mode == "🚩 Офсайды (Offside Capture)":
         st.subheader("🚩 Авто-мониторинг офсайдов")
         for m in live_data:
-            st.write(f"#### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
+            st.write(f"#### ⚔️ {m['home']} vs {m['away']}")
             p1, x, p2, total_pred = simulate_smalls(m["home"], m["away"], "Офсайды")
             live_k1, live_kx, live_k2 = fetch_live_smalls_from_site(m["home"], m["away"], "Офсайды")
             
-            if p1 > p2: winner_team, req_odds, win_prob, live_b_odds = m['home'], round(1 / (p1 * 1.045), 2), p1, live_k1
-            else: winner_team, req_odds, win_prob, live_b_odds = m['away'], round(1 / (p2 * 1.045), 2), p2, live_k2
+            if p1 > p2: fav_team, fav_prob, fav_live_odds, label = m['home'], p1, live_k1, "П1"
+            else: fav_team, fav_prob, fav_live_odds, label = m['away'], p2, live_k2, "П2"
                 
+            req_odds = round(1 / (fav_prob * 1.045), 2)
             st.caption(f"📈 Ожидаемый общий Тотал матча: **{total_pred}** офсайдов")
             st.code(f"Живая линия 1xbet по офсайдам -> П1: {live_k1} | X: {live_kx} | П2: {live_k2}")
-            st.success(f"🏆 Фаворит ИИ: {winner_team} ({win_prob*100:.1f}%) | Порог кэфа: >= {req_odds}")
+            st.write(f"📊 Метрика ИИ (Фаворит по офсайдам): **{fav_team}** | Вероятность: {fav_prob*100:.1f}%")
             
-            if live_b_odds < req_odds: st.write(f"🛑 **Вердикт:** Не ставить. Текущий кэф {live_b_odds} ниже порога {req_odds}")
-            else: st.error(f"🔥 **ЧЕТКОЕ ДЕЙСТВИЕ:** Ставь на Победу {winner_team} по офсайдам за {live_b_odds}!")
+            if fav_live_odds < req_odds:
+                st.error(f"🛑 **РЕШЕНИЕ ПО ОФСАЙДАМ:** Ставить на {label} ({fav_team}) НЕ РЕКОМЕНДУЕТСЯ. Кэф занижен БК ({fav_live_odds} < {req_odds})")
+            else:
+                st.success(f"🔥 **ЧЕТКОЕ ДЕЙСТВИЕ:** Ставь на {label} ({fav_team}) по офсайдам! Кэф {fav_live_odds} валуйный (Порог ИИ: >= {req_odds})")
             st.write("---")
