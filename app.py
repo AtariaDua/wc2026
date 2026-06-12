@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 # Настройка страницы под мобильные экраны
 st.set_page_config(
-    page_title="WC 2026 LIVE Full Auto", 
+    page_title="WC 2026 LIVE 12.6", 
     layout="centered", 
     page_icon="🧠"
 )
@@ -29,7 +29,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("🧠 WC-2026 ИИ-Комбайн LIVE")
-st.caption("Версия 12.4: Полный авто-скрининг линии 1xbet (Исходы + Смоллмаркеты)")
+st.caption("Версия 12.6: Полный боевой комплект раздельных вкладок")
 
 # --- ИНИЦИАЛИЗАЦИЯ ПАМЯТИ ---
 if "tactical_bias" not in st.session_state:
@@ -57,139 +57,117 @@ team_tactical_matrix = {
     "Uruguay": [56, 64, 15, 58, 66], "Ecuador": [51, 54, 12, 58, 62], "Colombia": [53, 60, 15, 55, 62]
 }
 
-# --- УМНЫЙ ДИНАМИЧЕСКИЙ ПАРСЕР ВСЕХ РЫНКОВ 1XBET ---
-@st.cache_data(ttl=600) # Обновление раз в 10 минут
-def fetch_all_live_1xbet_data():
-    # Запрашиваем расширенную линию (все доступные рынки)
-    url = f"https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey={API_KEY}&regions=eu&markets=h2h,btts"
+@st.cache_data(ttl=600)
+def fetch_live_matches():
+    url = f"https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey={API_KEY}&regions=eu&markets=h2h"
     try:
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
             cleaned_matches = []
             now = datetime.now(timezone.utc)
-            
             for match in data:
                 match_time_str = match.get("commence_time")
                 match_time = datetime.strptime(match_time_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                
-                # Фильтр сегодняшнего дня
-                if match_time < now - timedelta(hours=3) or match_time > now + timedelta(days=2):
+                if match_time < now - timedelta(hours=3) or match_time > now + timedelta(days=3):
                     continue
-                
                 home_team = match.get("home_team")
                 away_team = match.get("away_team")
-                
-                k1, kx, k2 = None, None, None
-                # Ищем блоки 1xbet
+                onexbet_odds = None
                 for bookmaker in match.get("bookmakers", []):
                     if bookmaker.get("key") == "onexbet":
-                        for market in bookmaker.get("markets", []):
-                            if market.get("key") == "h2h":
-                                outcomes = market.get("outcomes", [])
-                                for out in outcomes:
-                                    if out.get("name") == home_team: k1 = out.get("price")
-                                    elif out.get("name") == away_team: k2 = out.get("price")
-                                    elif out.get("name") == "Draw": kx = out.get("price")
-                
-                if k1 and k2:
+                        market = bookmaker.get("markets", [])[0]
+                        outcomes = market.get("outcomes", [])
+                        k1, kx, k2 = 2.0, 3.2, 2.0
+                        for out in outcomes:
+                            if out.get("name") == home_team: k1 = out.get("price")
+                            elif out.get("name") == away_team: k2 = out.get("price")
+                            elif out.get("name") == "Draw": kx = out.get("price")
+                        onexbet_odds = (k1, kx, k2)
+                        break
+                if onexbet_odds:
                     local_time = match_time.astimezone(timezone(timedelta(hours=5)))
-                    cleaned_matches.append({
-                        "home": home_team, "away": away_team,
-                        "k1": k1, "kx": kx if kx else 3.4, "k2": k2,
-                        "time": local_time.strftime("%d.%02m %H:%M")
-                    })
+                    cleaned_matches.append({"home": home_team, "away": away_team, "k1": onexbet_odds[0], "kx": onexbet_odds[1], "k2": onexbet_odds[2], "time": local_time.strftime("%d.%02m %H:%M")})
             return cleaned_matches
         return []
     except:
         return []
 
-# --- СИМУЛЯТОРЫ ИИ ---
-def core_calc(home, away, market_type):
+def get_simulated_bk_smalls(p1, x, p2):
+    margin = 1.045
+    return round(1 / (max(0.01, p1) * margin), 2), round(1 / (max(0.01, x) * margin), 2), round(1 / (max(0.01, p2) * margin), 2)
+
+def simulate_smalls(home, away, market_type):
     b = st.session_state.tactical_bias
-    if market_type == "Исходы":
-        sim_h = np.random.poisson(base_team_power.get(home, 1.5) * b["Исходы_база"], 15000)
-        sim_a = np.random.poisson(base_team_power.get(away, 1.5) * b["Исходы_база"], 15000)
-    elif market_type == "Угловые":
-        s_h = team_tactical_matrix.get(home, [50, 50, 12, 50, 50])
-        s_a = team_tactical_matrix.get(away, [50, 50, 12, 50, 50])
-        sim_h = np.random.poisson(b["Угловые_база"] + (s_h[0]*0.03) + (s_h[1]*b["Коэффициент_навесов"]), 15000)
-        sim_a = np.random.poisson(b["Угловые_база"] + (s_a[0]*0.03) + (s_a[1]*b["Коэффициент_навесов"]), 15000)
-    else: # Офсайды
-        s_h = team_tactical_matrix.get(home, [50, 50, 12, 50, 50])
-        s_a = team_tactical_matrix.get(away, [50, 50, 12, 50, 50])
-        sim_h = np.random.poisson(b["Офсайды_база"] + (s_a[3]*0.04), 15000)
-        sim_a = np.random.poisson(b["Офсайды_база"] + (s_h[3]*0.04), 15000)
-        
-    p1 = np.mean(sim_h > sim_a); x = np.mean(sim_h == sim_a); p2 = np.mean(sim_h < sim_a)
-    return p1, x, p2
+    s_h = team_tactical_matrix.get(home, [50, 50, 12, 50, 50])
+    s_a = team_tactical_matrix.get(away, [50, 50, 12, 50, 50])
+    if market_type == "Угловые":
+        exp_h = b["Угловые_база"] + (s_h[0]*0.03) + (s_h[1]*b["Коэффициент_навесов"])
+        exp_a = b["Угловые_база"] + (s_a[0]*0.03) + (s_a[1]*b["Коэффициент_навесов"])
+    else:
+        exp_h = b["Офсайды_база"] + (s_a[3]*0.04)
+        exp_a = b["Офсайды_база"] + (s_h[3]*0.04)
+    sim_h = np.random.poisson(exp_h, 15000)
+    sim_a = np.random.poisson(exp_a, 15000)
+    return np.mean(sim_h > sim_a), np.mean(sim_h == sim_a), np.mean(sim_h < sim_a), round(float(np.mean(sim_h + sim_a)), 1)
 
-# --- ИНТЕРФЕЙС ПРИЛОЖЕНИЯ ---
-market_mode = st.selectbox("Выберите рабочую область", ["🔥 Сливки Дня (Полный Автомат)", "📊 Сквозной скрининг линии"])
+# --- НАВИГАЦИЯ С ПОЛНЫМ НАБОРОМ ВКЛАДОК ---
+market_mode = st.selectbox(
+    "Выберите рабочую область",
+    ["🔥 Сливки Дня", "💰 Победы и ничьи матчей (1xbet)", "📐 Угловые удары", "🚩 Офсайды (Offside Capture)"]
+)
 
-live_data = fetch_all_live_1xbet_data()
+live_data = fetch_live_matches()
 
 if not live_data:
-    st.info("🟢 Ожидание синхронизации потока матчей 1xbet...")
+    st.info("🟢 Ожидание публикации котировок 1xbet на текущий игровой день...")
 else:
-    if market_mode == "🔥 Сливки Дня (Полный Автомат)":
-        st.subheader("🚀 Снайперский ИИ-анализ на сегодня")
+    if market_mode == "🔥 Сливки Дня":
+        st.subheader("🚀 Готовые решения на ближайшие игры")
         all_signals = []
-        
         for m in live_data:
-            for m_type in ["Исходы", "Угловые", "Офсайды"]:
-                p1, x, p2 = core_calc(m["home"], m["away"], m_type)
-                
-                # Коэффициенты из 1xbet для исходов берутся напрямую, для смоллов — симулируются под линию БК
-                k1_live = m["k1"] if m_type == "Исходы" else round(1/(p1*1.045), 2)
-                k2_live = m["k2"] if m_type == "Исходы" else round(1/(p2*1.045), 2)
-                
-                edge_1 = (p1 - (1 / k1_live / 1.045)) * 100
-                edge_2 = (p2 - (1 / k2_live / 1.045)) * 100
-                
-                all_signals.append({"match": f"{m['home']} - {m['away']} [{m['time']}]", "market": m_type, "type": f"Поб. {m['home']}", "prob": p1, "odds": k1_live, "edge": edge_1})
-                all_signals.append({"match": f"{m['home']} - {m['away']} [{m['time']}]", "market": m_type, "type": f"Поб. {m['away']}", "prob": p2, "odds": k2_live, "edge": edge_2})
-                
+            sim_h = np.random.poisson(base_team_power.get(m["home"], 1.5), 15000)
+            sim_a = np.random.poisson(base_team_power.get(m["away"], 1.5), 15000)
+            p1, p2 = np.mean(sim_h > sim_a), np.mean(sim_h < sim_a)
+            all_signals.append({"match": f"{m['home']}-{m['away']}", "type": f"Поб. {m['home']}", "prob": p1, "odds": m["k1"]})
+            all_signals.append({"match": f"{m['home']}-{m['away']}", "type": f"Поб. {m['away']}", "prob": p2, "odds": m["k2"]})
         df_all = pd.DataFrame(all_signals)
         
-        # 🚂 АВТО-ЭКСПРЕСС ДНЯ
         st.write("### 🚂 ИИ-Экспресс Дня")
-        express_pool = df_all[(df_all["prob"] >= 0.58) & (df_all["odds"] >= 1.45) & (df_all["odds"] <= 1.80)].sort_values(by="prob", ascending=False)
-        
-        if len(express_pool) >= 2:
-            leg1 = express_pool.iloc[0]
-            leg2 = express_pool.iloc[1]
-            st.success(f"""
-            **🔥 Автоматический экспресс готов! Итоговый кэф в 1xbet: {round(leg1['odds'] * leg2['odds'], 2)}**
-            * ⚽ **{leg1['match']}** | {leg1['market']} -> **{leg1['type']}** за **{leg1['odds']}**
-            * ⚽ **{leg2['match']}** | {leg2['market']} -> **{leg2['type']}** за **{leg2['odds']}**
-            """)
-        else:
-            st.info("🟢 Нет железобетонных совпадений для экспресса на ближайшие часы.")
-            
-        st.write("---")
-        
-        # 🎯 АВТО-ТОП 5 ОДИНАЧНЫХ СТАВОК (ИСХОДЫ + СМОЛЛЫ)
-        st.write("### 🎯 Топ-5 Одиночных ставок (Рабочие кэфы)")
-        balanced_ordinars = df_all[
-            (df_all["odds"] >= 1.70) & (df_all["odds"] <= 3.50) & 
-            (df_all["edge"] >= 2.5) & (df_all["prob"] >= 0.40)
-        ].sort_values(by="edge", ascending=False).head(5)
-        
-        if not balanced_ordinars.empty:
-            for idx, row in balanced_ordinars.iterrows():
-                with st.container():
-                    st.error(f"🎯 **{row['match']}** ({row['market']}) -> **{row['type']}** за **{row['odds']}**")
-                    st.write(f"Чистый автоматический валуй: **+{row['edge']:.1f}%** | Вероятность: {row['prob']*100:.1f}%")
-        else:
-            st.info("🟢 Автоматический фильтр не нашел явных ошибок в текущей линии. Используй Экспресс Дня.")
+        ep = df_all[(df_all["prob"]>=0.55) & (df_all["odds"]>=1.45) & (df_all["odds"]<=1.85)]
+        if len(ep) >= 2:
+            st.success(f"🔥 Итоговый кэф купона: {round(ep.iloc[0]['odds']*ep.iloc[1]['odds'], 2)}\n* ⚽ {ep.iloc[0]['match']} -> {ep.iloc[0]['type']} ({ep.iloc[0]['odds']})\n* ⚽ {ep.iloc[1]['match']} -> {ep.iloc[1]['type']} ({ep.iloc[1]['odds']})")
+        else: st.info("🟢 Нет подходящих матчей для экспресса.")
 
-    elif market_mode == "📊 Сквозной скрининг линии":
-        st.subheader("🗓️ Живой мониторинг всех рынков")
+    elif market_mode == "💰 Победы и ничьи матчей (1xbet)":
+        st.subheader("💰 Мониторинг рынка чистых исходов")
         for m in live_data:
-            st.write(f"### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
-            for m_type in ["Исходы", "Угловые", "Офсайды"]:
-                p1, x, p2 = core_calc(m["home"], m["away"], m_type)
-                st.write(f"**🟢 Рынок: {m_type}**")
-                st.write(f"Распределение сил ИИ: П1 {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
+            st.write(f"#### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
+            sim_h = np.random.poisson(base_team_power.get(m['home'], 1.5), 15000)
+            sim_a = np.random.poisson(base_team_power.get(m['away'], 1.5), 15000)
+            p1, x, p2 = np.mean(sim_h > sim_a), np.mean(sim_h == sim_a), np.mean(sim_h < sim_a)
+            st.code(f"Линия 1xbet -> П1: {m['k1']} | X: {m['kx']} | П2: {m['k2']}")
+            st.write(f"ИИ Прогноз: П1 {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
+            st.write("---")
+
+    elif market_mode == "📐 Угловые удары":
+        st.subheader("📐 Анализ угловых по календарю FIFA")
+        for m in live_data:
+            st.write(f"#### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
+            p1, x, p2, total_pred = simulate_smalls(m["home"], m["away"], "Угловые")
+            k1, kx, k2 = get_simulated_bk_smalls(p1, x, p2)
+            st.caption(f"📈 Ожидаемый общий Тотал матча: **{total_pred}** угловых")
+            st.code(f"Расчетные кэфы БК -> П1: {k1} | X: {kx} | П2: {k2}")
+            st.write(f"Вероятности ИИ: П1 {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
+            st.write("---")
+
+    elif market_mode == "🚩 Офсайды (Offside Capture)":
+        st.subheader("🚩 Анализ офсайдов по календарю FIFA")
+        for m in live_data:
+            st.write(f"#### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
+            p1, x, p2, total_pred = simulate_smalls(m["home"], m["away"], "Офсайды")
+            k1, kx, k2 = get_simulated_bk_smalls(p1, x, p2)
+            st.caption(f"📈 Ожидаемый общий Тотал матча: **{total_pred}** офсайдов")
+            st.code(f"Расчетные кэфы БК -> П1: {k1} | X: {kx} | П2: {k2}")
+            st.write(f"Вероятности ИИ: П1 {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
             st.write("---")
