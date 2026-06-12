@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 # Настройка страницы под мобильные экраны
 st.set_page_config(
-    page_title="WC 2026 LIVE 12.6", 
+    page_title="WC 2026 LIVE 12.8", 
     layout="centered", 
     page_icon="🧠"
 )
@@ -29,7 +29,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("🧠 WC-2026 ИИ-Комбайн LIVE")
-st.caption("Версия 12.6: Полный боевой комплект раздельных вкладок")
+st.caption("Версия 12.8: Автоматические пороги окупаемости для Угловых и Офсайдов")
 
 # --- ИНИЦИАЛИЗАЦИЯ ПАМЯТИ ---
 if "tactical_bias" not in st.session_state:
@@ -93,10 +93,6 @@ def fetch_live_matches():
     except:
         return []
 
-def get_simulated_bk_smalls(p1, x, p2):
-    margin = 1.045
-    return round(1 / (max(0.01, p1) * margin), 2), round(1 / (max(0.01, x) * margin), 2), round(1 / (max(0.01, p2) * margin), 2)
-
 def simulate_smalls(home, away, market_type):
     b = st.session_state.tactical_bias
     s_h = team_tactical_matrix.get(home, [50, 50, 12, 50, 50])
@@ -111,7 +107,7 @@ def simulate_smalls(home, away, market_type):
     sim_a = np.random.poisson(exp_a, 15000)
     return np.mean(sim_h > sim_a), np.mean(sim_h == sim_a), np.mean(sim_h < sim_a), round(float(np.mean(sim_h + sim_a)), 1)
 
-# --- НАВИГАЦИЯ С ПОЛНЫМ НАБОРОМ ВКЛАДОК ---
+# --- НАВИГАЦИЯ ---
 market_mode = st.selectbox(
     "Выберите рабочую область",
     ["🔥 Сливки Дня", "💰 Победы и ничьи матчей (1xbet)", "📐 Угловые удары", "🚩 Офсайды (Offside Capture)"]
@@ -148,6 +144,13 @@ else:
             p1, x, p2 = np.mean(sim_h > sim_a), np.mean(sim_h == sim_a), np.mean(sim_h < sim_a)
             st.code(f"Линия 1xbet -> П1: {m['k1']} | X: {m['kx']} | П2: {m['k2']}")
             st.write(f"ИИ Прогноз: П1 {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
+            
+            req_k1 = round(1 / (p1 * 1.045), 2) if p1 > 0 else 99.0
+            req_k2 = round(1 / (p2 * 1.045), 2) if p2 > 0 else 99.0
+            if m["k1"] < req_k1: st.write(f"🛑 **П1 ({m['home']}):** Не ставить. Кэф занижен БК. (Порог ИИ: >= **{req_k1}**)")
+            else: st.write(f"🔥 **П1 ({m['home']}):** ВАЛУЙНЫЙ КЭФ. Можно ставить (Порог ИИ: >= {req_k1})")
+            if m["k2"] < req_k2: st.write(f"🛑 **П2 ({m['away']}):** Не ставить. Кэф занижен БК. (Порог ИИ: >= **{req_k2}**)")
+            else: st.write(f"🔥 **П2 ({m['away']}):** ВАЛУЙНЫЙ КЭФ. Можно ставить (Порог ИИ: >= {req_k2})")
             st.write("---")
 
     elif market_mode == "📐 Угловые удары":
@@ -155,10 +158,17 @@ else:
         for m in live_data:
             st.write(f"#### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
             p1, x, p2, total_pred = simulate_smalls(m["home"], m["away"], "Угловые")
-            k1, kx, k2 = get_simulated_bk_smalls(p1, x, p2)
+            
+            # Расчет минимальных пороговых кэфов окупаемости
+            req_k1 = round(1 / (p1 * 1.045), 2) if p1 > 0 else 99.0
+            req_k2 = round(1 / (p2 * 1.045), 2) if p2 > 0 else 99.0
+            
             st.caption(f"📈 Ожидаемый общий Тотал матча: **{total_pred}** угловых")
-            st.code(f"Расчетные кэфы БК -> П1: {k1} | X: {kx} | П2: {k2}")
-            st.write(f"Вероятности ИИ: П1 {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
+            st.write(f"Вероятности ИИ: П1 (Канада) {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
+            
+            st.error(f"📋 **ПРАВИЛО СТАВКИ В 1XBET ДЛЯ УГЛОВЫХ:**")
+            st.write(f"👉 Ставь на **П1 ({m['home']})**, только если оригинальный кэф в 1xbet **>= {req_k1}**")
+            st.write(f"👉 Ставь на **П2 ({m['away']})**, только если оригинальный кэф в 1xbet **>= {req_k2}**")
             st.write("---")
 
     elif market_mode == "🚩 Офсайды (Offside Capture)":
@@ -166,8 +176,15 @@ else:
         for m in live_data:
             st.write(f"#### ⚔️ {m['home']} vs {m['away']} | ⏰ {m['time']}")
             p1, x, p2, total_pred = simulate_smalls(m["home"], m["away"], "Офсайды")
-            k1, kx, k2 = get_simulated_bk_smalls(p1, x, p2)
+            
+            # Расчет минимальных пороговых кэфов окупаемости
+            req_k1 = round(1 / (p1 * 1.045), 2) if p1 > 0 else 99.0
+            req_k2 = round(1 / (p2 * 1.045), 2) if p2 > 0 else 99.0
+            
             st.caption(f"📈 Ожидаемый общий Тотал матча: **{total_pred}** офсайдов")
-            st.code(f"Расчетные кэфы БК -> П1: {k1} | X: {kx} | П2: {k2}")
             st.write(f"Вероятности ИИ: П1 {p1*100:.1f}% | Х {x*100:.1f}% | П2 {p2*100:.1f}%")
+            
+            st.error(f"📋 **ПРАВИЛО СТАВКИ В 1XBET ДЛЯ ОФСАЙДОВ:**")
+            st.write(f"👉 Ставь на **П1 ({m['home']})**, только если оригинальный кэф в 1xbet **>= {req_k1}**")
+            st.write(f"👉 Ставь на **П2 ({m['away']})**, только если оригинальный кэф в 1xbet **>= {req_k2}**")
             st.write("---")
