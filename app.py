@@ -106,8 +106,8 @@ def fetch_live_smalls_from_site(home, away, market_type):
         return 1.64, 8.00, 2.81
     elif home == "USA" and market_type == "Офсайды":
         return 2.50, 3.70, 2.27
-    return 1.85, 3.40, 2.10
-
+all_signals.append({"match": f"{m['home']}-{m['away']}", "market": sm_type, "type": f"Поб. {m['home']}", "prob": sp1, "odds": live_k1, "edge": (sp1-(1/live_k1/1.045))*100})
+all_signals.append({"match": f"{m['home']}-{m['away']}", "market": sm_type, "type": f"Поб. {m['away']}", "prob": sp2, "odds": live_k2, "edge": (sp2-(1/live_k2/1.045))*100})
 def simulate_smalls(home, away, market_type):
     b = st.session_state.tactical_bias
     s_h = team_tactical_matrix.get(home, [50, 50, 12, 50, 50])
@@ -119,8 +119,12 @@ def simulate_smalls(home, away, market_type):
         exp_h = b["Офсайды_база"] + (s_a[3]*0.04)
         exp_a = b["Офсайды_база"] + (s_h[3]*0.04)
     sim_h = np.random.poisson(exp_h, 15000)
-    sim_a = np.random.poisson(exp_a, 15000)
-    return np.mean(sim_h > sim_a), np.mean(sim_h == sim_a), np.mean(sim_h < sim_a), round(float(np.mean(sim_h + sim_a)), 1)
+   st.success(f"""
+**🔥 Смешанный экспресс дня готов! Общий коэффициент в 1xbet: {round(leg1['odds'] * leg2['odds'], 2)}**
+
+1. ⚽ **{leg1['match']}** | Рынок: **{leg1['market']}** ➡️ Ставка: **{leg1['type']}** за **{leg1['odds']}** (Перевес: +{leg1['edge']:.1f}%)
+2. ⚽ **{leg2['match']}** | Рынок: **{leg2['market']}** ➡️ Ставка: **{leg2['type']}** за **{leg2['odds']}** (Перевес: +{leg2['edge']:.1f}%)
+""")
 
 # --- НАВИГАЦИЯ ---
 market_mode = st.selectbox(
